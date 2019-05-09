@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">sudoku</string>
+    <string name="submitText" />
+    <string name="border">Border Background</string>
+</resources>
