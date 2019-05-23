@@ -17,6 +17,7 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -24,32 +25,40 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 
+import org.w3c.dom.Text;
+
+import java.lang.reflect.Array;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Random;
+import java.util.Stack;
 
-/*
- * Things to implement
- * Starting Numbers are uneditable
- * Starting Numbers have different color
- * Borders for each subgrid
- *
-*/
 
 public class MainActivity extends Activity {
 
     GridView gridView;
 
-    private boolean[] uneditable = new boolean[30];
 
-    private ImageView borderImageView;
+    private Button button1;
+    private Button button2;
+    private Button button3;
+    private Button button4;
+    private Button button5;
+    private Button button6;
+    private Button button7;
+    private Button button8;
+    private Button button9;
+
+    private Stack<TwoPoints> stack;     // This stack is responsible for handling redo's
+
+    private int[] numTracker = new int[9];   // Array keeps track of how many of each number are on the board
 
     private TextView revealer;
     private TextView timerTextView;
     private Integer count;
     private Integer minutes;
-    private long startTime = 0;
 
     private static int w=9, curx, cury;
     private static int curPos;
@@ -58,7 +67,6 @@ public class MainActivity extends Activity {
     static boolean[] validity = new boolean[w*w];       /* This array keeps track of which numbers can be edited */
     private boolean boardFilled;
     private static int MAX_COORDINATE = w * w - 1;
-    int counter = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,33 +79,25 @@ public class MainActivity extends Activity {
         count = 0;      // Initialize the count for timer
         minutes = 0;
 
+        stack = new Stack<TwoPoints>();     // Initialize the stack
+
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
                 R.layout.list_item, tiles);
 
         gridView.setAdapter(adapter);       /* Setup gridview with array adapter */
 
-        //TextView tv = (TextView) adapter.getView(1, null, gridView);
-
-//        LayoutInflater layoutInflater;
-//        layoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-//
-//        borderImageView = (ImageView) layoutInflater.inflate(R.layout.border_image, null);
-//        borderImageView.setScaleX((float) .3);
-//        borderImageView.setScaleY((float) .3);
-//        gridView.setBackgroundColor(Color.TRANSPARENT);
+        button1 = (Button) findViewById(R.id.button1);
+        button2 = (Button) findViewById(R.id.button2);
+        button3 = (Button) findViewById(R.id.button3);
+        button4 = (Button) findViewById(R.id.button4);
+        button5 = (Button) findViewById(R.id.button5);
+        button6 = (Button) findViewById(R.id.button6);
+        button7 = (Button) findViewById(R.id.button7);
+        button8 = (Button) findViewById(R.id.button8);
+        button9 = (Button) findViewById(R.id.button9);
 
         init();     // Call initializer
-//        generateSudoku(0);
-//        boardFilled = false;
-//        removeNums();
-
-        // Create a thread and start it
-//        Thread thread = new Thread (countNumbers);
-//        thread.start();
-
         gridView.setVisibility(View.INVISIBLE);
-
-
 
         gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> parent, View v,
@@ -116,11 +116,9 @@ public class MainActivity extends Activity {
                         }
                     }
                 }
-                updatePos(position);        // Update the global variable and highlight tile
+                updatePos(position);    // Update the global variable and highlight tile
             }
         });
-        Log.d("Before for loop", "check sttment");
-
     }
 
     //**************HANDLER****************/
@@ -154,6 +152,9 @@ public class MainActivity extends Activity {
 
     /* Initialize the gridview with empty values */
     void init(){
+        for (int i = 0; i < 9; i++) {
+            numTracker[i] = 9;
+        }
         for(int i=0;i<tiles.length;i++) {
             tiles[i]="";
             validity[i]=false;
@@ -162,22 +163,32 @@ public class MainActivity extends Activity {
 
         generateSudoku(0);
         removeNums();
-        //((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
     }
 
     /* resets Board */
     public void resetBoard(View view) {
-//        for(int i=0;i<tiles.length;i++) tiles[i]="";
-//        boardFilled = false;
-//        generateSudoku(0);
-//        removeNums();
+        for (int i = 0; i < tiles.length; i++) {
+            ((TextView)gridView.getChildAt(i)).setTextColor(Color.BLACK);
+        }
+
         init();
         count = 0;
         minutes = 0;
-        String clearText = "";
-        revealer.setText(clearText);
+        revealer.setText("");
 
-        //((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        timerTextView.setVisibility(View.VISIBLE);
+        button1.setVisibility(View.VISIBLE);
+        button2.setVisibility(View.VISIBLE);
+        button3.setVisibility(View.VISIBLE);
+        button4.setVisibility(View.VISIBLE);
+        button5.setVisibility(View.VISIBLE);
+        button6.setVisibility(View.VISIBLE);
+        button7.setVisibility(View.VISIBLE);
+        button8.setVisibility(View.VISIBLE);
+        button9.setVisibility(View.VISIBLE);
+        ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+
+        stack.empty();
         start(view);
     }
 
@@ -283,14 +294,29 @@ public class MainActivity extends Activity {
     }
 
     public void removeNums() {
-        int count = 51;     // Remove 51 leave 30 random boxees
+        int count = 38;     // Remove 38 tiles -- leave 43 tiles
         while (count != 0) {
             int tilePosition = r.nextInt(81);
-            if (!tiles[tilePosition].equals("")) {
+            if (!tiles[tilePosition].equals("")) {      // if a num is present, remove it
+                // grab that string convert to integer
+                // as you remove it, decrement the count of that number in correct position
+                int num = Integer.parseInt(tiles[tilePosition]); // Convert string into num for indexing
+                numTracker[num-1]--;
                 count--;
                 tiles[tilePosition] = "";
             }
         }
+
+    }
+
+    /*
+     * Display puzzle is solved, stop the clock
+     */
+     public void conclude () {
+        // Display how long it took to solve,
+        String format = "%1$02d";
+        revealer.setText("Finished in " + String.format(format, minutes) + ":" + String.format(format, count) + "!");
+        timerTextView.setVisibility(View.INVISIBLE);
 
     }
 
@@ -305,85 +331,38 @@ public class MainActivity extends Activity {
     }
 
     public void clearBox(View view) {
-        if (validity[curPos] == false) {
+        if (!validity[curPos]) {
             tiles[curPos] = "";
+            /* Make a copy and push it on the stack */
+            TwoPoints twoPoints = new TwoPoints(curPos, "");
+            stack.push(twoPoints);
             ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
         }
     }
 
-    /* Place the clicked number (one) in current position */
-    public void number1(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "1";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
 
-    }
-
-    public void number2(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "2";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number3(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "3";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number4(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "4";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number5(View view) {
-//        ((TextView)gridView.getChildAt(4)).setTextColor(Color.DKGRAY);
-        if (validity[curPos] == false) {
-            tiles[curPos] = "5";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number6(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "6";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number7(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "7";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number8(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "8";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
-
-    public void number9(View view) {
-        if (validity[curPos] == false) {
-            tiles[curPos] = "9";
-            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        }
-    }
 
     public void solver(View view) {
         // Solves current board
         boardFilled = false;
+        /*
+         * Color in new values solved by the board
+         */
+        for (int i = 0; i < tiles.length; i++) {
+            if (!validity[i]) {  /* if not an initial num */
+                tiles[i] = "";
+                ((TextView)gridView.getChildAt(i)).setTextColor(Color.BLUE);
+                if (i < 9) {
+                    numTracker[i] = 9;
+                }
+
+            }
+        }
+        revealer.setText("Puzzle Solved");
+        timerTextView.setVisibility(View.INVISIBLE);
         generateSudoku(0);
         ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
     }
-
 
 
     boolean boardCheck() {
@@ -411,7 +390,6 @@ public class MainActivity extends Activity {
         } else {
             revealer.setText(wrong);
         }
-
         timerTextView.setText("00:00");
 
     }
@@ -419,16 +397,348 @@ public class MainActivity extends Activity {
     // Starts the game
     public void start(View view) {
         for (int i = 0; i < 81; i++) {
-            if (!tiles[i].equals("")) {
-                Log.d("Entered", "Pos at: " + Integer.toString(i));
-                ((TextView)gridView.getChildAt(i)).setTextColor(Color.RED);
-                validity[i] = true;
+            if (!tiles[i].equals("")) { // Finds the initial values before game starts
+                validity[i] = true;     // This position is non-editable
             }
         }
-//        gridView.getChildAt(0).setBackground();
         gridView.setVisibility(View.VISIBLE);
         ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
-        Thread thread = new Thread (countNumbers);
+
+        Thread thread = new Thread (countNumbers);      // Thread starts for counter
         thread.start();
+    }
+
+    /* If button is clicked, update gridview to previous state */
+    public void redo(View view) {
+        if (!stack.isEmpty()) {
+            TwoPoints tp = stack.pop();
+            int pos = tp.firstPoint();         // Retrieves the pos of the previous state
+            String value = tp.secondPoint();   // Retrieves the string value of the previous state
+            tiles[pos] = value;                // Display previous state
+        }
+        else {  // End of stack
+            Toast.makeText(this, "Can't undo anymore", Toast.LENGTH_SHORT).show();
+        }
+        ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+    }
+
+
+    /* Place the clicked number (one) in current position */
+    public void number1(View view) {
+        /* Checks to see if the curPos is not in a pre-defined number */
+        if (!validity[curPos]) {
+            /* Colors the text RED if incorrect number is written */
+            if (!checkSubgrid(curPos, 1) || !checkCol(curPos, 1) || !checkRow(curPos, 1)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            } else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[0]++;
+            }
+            if (numTracker[0] == 9) {
+                button1.setVisibility(View.INVISIBLE);
+            }
+
+            /* hold a copy in stack (used for redo) */
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "1";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();   // update the board
+        }
+
+    }
+
+    public void number2(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 2) || !checkCol(curPos, 2) || !checkRow(curPos, 2)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[1]++;
+            }
+            if (numTracker[1] == 9) {
+                button2.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "2";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number3(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 3) || !checkCol(curPos, 3) || !checkRow(curPos, 3)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[2]++;
+            }
+            if (numTracker[2] == 9) {
+                button3.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "3";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number4(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 4) || !checkCol(curPos, 4) || !checkRow(curPos, 4)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[3]++;
+            }
+            if (numTracker[3] == 9) {
+                button4.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "4";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number5(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 5) || !checkCol(curPos, 5) || !checkRow(curPos, 5)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[4]++;
+            }
+            if (numTracker[4] == 9) {
+                button5.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "5";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number6(View view) {
+        if (!validity[curPos]) {    //  Checks if box is in non-initialized tile
+            if (!checkSubgrid(curPos, 6) || !checkCol(curPos, 6) || !checkRow(curPos, 6)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {  /* Valid entry */
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[5]++;
+
+            }
+            if (numTracker[5] == 9) {
+                button6.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "6";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number7(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 7) || !checkCol(curPos, 7) || !checkRow(curPos, 7)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[6]++;
+            }
+            if (numTracker[6] == 9) {
+                button7.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "7";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number8(View view) {
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 8) || !checkCol(curPos, 8) || !checkRow(curPos, 8)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                numTracker[7]++;
+            }
+            if (numTracker[7] == 9) {
+                button8.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "8";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    public void number9(View view) {
+
+        if (!validity[curPos]) {
+            if (!checkSubgrid(curPos, 9) || !checkCol(curPos, 9) || !checkRow(curPos, 9)) {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.RED);
+            }
+            else {
+                ((TextView)gridView.getChildAt(curPos)).setTextColor(Color.BLUE);
+                int x = numTracker[8];
+                x++;
+                numTracker[8] = x;
+                //numTracker[8]++;
+            }
+            if (numTracker[8] == 9) {   // Hides button once 9 numbers have been inputted in
+                button9.setVisibility(View.INVISIBLE);
+            }
+
+            TwoPoints twoPoints;
+            if (!tiles[curPos].equals("")) {     /* push # if number is in tile position */
+                twoPoints = new TwoPoints(curPos, tiles[curPos]);
+            } else {
+                twoPoints = new TwoPoints(curPos, "");
+            }
+            stack.push(twoPoints);
+            tiles[curPos] = "9";
+
+            /* check if board is complete, if so finish game */
+            if (numTracker[0] == 9 && numTracker[1] == 9 && numTracker[2] == 9 && numTracker[3] == 9 &&
+                    numTracker[4] == 9 && numTracker[5] == 9 && numTracker[6] == 9 && numTracker[7] == 9 &&
+                    numTracker[8] == 9) {
+                // game is complete
+                conclude();
+            }
+            ((ArrayAdapter)gridView.getAdapter()).notifyDataSetChanged();
+        }
     }
 }
